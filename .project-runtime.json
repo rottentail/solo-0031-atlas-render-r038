@@ -6,7 +6,7 @@
     ".go"
   ],
   "build_command": "go build ./...",
-  "testing": "deferred",
+  "testing": "unit and workflow",
   "workflow_checks": [
     {
       "workflow_id": "create-scene",
@@ -71,6 +71,14 @@
     {
       "workflow_id": "observe-service",
       "command": "python3 scripts/walkthrough.py --workflow observe-service"
+    },
+    {
+      "workflow_id": "multi-worker",
+      "command": "python3 scripts/walkthrough.py --workflow multi-worker"
+    },
+    {
+      "workflow_id": "partition-recovery",
+      "command": "python3 scripts/walkthrough.py --workflow partition-recovery"
     }
   ],
   "environment": {
@@ -78,5 +86,6 @@
     "python": ">=3.9 for walkthrough",
     "platform": "macOS or Linux; advisory file locking required"
   },
-  "run_command": "go run ./cmd/atlas"
+  "run_command": "go run ./cmd/atlas serve",
+  "test_command": "go test ./..."
 }

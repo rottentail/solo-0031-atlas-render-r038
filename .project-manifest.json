@@ -36,7 +36,7 @@
     {
       "id": "persist",
       "path": "internal/persist",
-      "responsibility": "独占打开、状态校验和原子替换"
+      "responsibility": "每事务文件锁、共享状态校验和原子替换"
     },
     {
       "id": "service",
@@ -46,7 +46,7 @@
     {
       "id": "engine",
       "path": "internal/engine",
-      "responsibility": "持久队列领取、执行、取消及恢复"
+      "responsibility": "多进程持久队列领取、租约续期、执行、取消及过期恢复"
     },
     {
       "id": "bundle",
@@ -61,7 +61,7 @@
     {
       "id": "httpapi",
       "path": "internal/httpapi",
-      "responsibility": "有界JSON解析和HTTP接口"
+      "responsibility": "有界JSON解析和HTTP接口（接收、查询与控制）"
     }
   ],
   "workflows": [
@@ -247,9 +247,9 @@
     },
     {
       "id": "recover-render",
-      "name": "进程重启恢复",
-      "entry": "进程启动 Recover",
-      "success": "running重新入队并按原快照完成",
+      "name": "执行进程崩溃恢复",
+      "entry": "执行进程被杀后租约过期接管",
+      "success": "新执行进程接管running并按原快照完成",
       "failure": "持久文件损坏时拒绝启动",
       "module_ids": [
         "engine",
@@ -350,6 +350,40 @@
         "通过存储或渲染结果观察已提交事实"
       ],
       "verification": "python3 scripts/walkthrough.py --workflow observe-service"
+    },
+    {
+      "id": "multi-worker",
+      "name": "多执行进程并发消费",
+      "entry": "多个 atlas worker 共享状态",
+      "success": "每个任务只产生一个结果且事件序号单调",
+      "failure": "重复结果或多个进程同时持有一个任务",
+      "module_ids": [
+        "engine",
+        "persist",
+        "observe"
+      ],
+      "steps": [
+        "经公开HTTP入口完成领域转换",
+        "通过存储或渲染结果观察已提交事实"
+      ],
+      "verification": "python3 scripts/walkthrough.py --workflow multi-worker"
+    },
+    {
+      "id": "partition-recovery",
+      "name": "执行进程崩溃后的租约接管",
+      "entry": "租约过期后由新执行进程接管",
+      "success": "租约过期后新进程接管原attempt并只产生一个结果",
+      "failure": "失联进程的旧claim覆盖已发布结果或attempt被增加",
+      "module_ids": [
+        "engine",
+        "persist",
+        "model"
+      ],
+      "steps": [
+        "经公开HTTP入口完成领域转换",
+        "通过存储或渲染结果观察已提交事实"
+      ],
+      "verification": "python3 scripts/walkthrough.py --workflow partition-recovery"
     }
   ],
   "complexity": {

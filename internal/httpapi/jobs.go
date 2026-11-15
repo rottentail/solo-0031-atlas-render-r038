@@ -6,6 +6,13 @@ import (
 	"net/http"
 )
 
+// view prevents an internal execution claim from leaking through the API.
+func view(j model.Job) model.Job {
+	j.Payload = model.Snapshot{}
+	j.Claim = ""
+	return j
+}
+
 func (a API) submit(w http.ResponseWriter, r *http.Request) {
 	var b struct {
 		SnapshotID string `json:"snapshotId"`
@@ -20,17 +27,20 @@ func (a API) submit(w http.ResponseWriter, r *http.Request) {
 		fail(w, e)
 		return
 	}
-	v.Payload = model.Snapshot{}
-	write(w, 202, v)
+	write(w, 202, view(v))
 }
 func (a API) getJob(w http.ResponseWriter, r *http.Request) {
-	v, ok := a.Service.Store.Read().Jobs[r.PathValue("id")]
+	st, e := a.Service.Store.Read()
+	if e != nil {
+		fail(w, e)
+		return
+	}
+	v, ok := st.Jobs[r.PathValue("id")]
 	if !ok {
 		fail(w, model.Missing("job not found"))
 		return
 	}
-	v.Payload = model.Snapshot{}
-	write(w, 200, v)
+	write(w, 200, view(v))
 }
 func (a API) cancel(w http.ResponseWriter, r *http.Request) {
 	v, e := a.Service.Cancel(r.PathValue("id"))
@@ -38,9 +48,7 @@ func (a API) cancel(w http.ResponseWriter, r *http.Request) {
 		fail(w, e)
 		return
 	}
-	a.Worker.Cancel(v.ID)
-	v.Payload = model.Snapshot{}
-	write(w, 200, v)
+	write(w, 200, view(v))
 }
 func (a API) retry(w http.ResponseWriter, r *http.Request) {
 	v, e := a.Service.Retry(r.PathValue("id"))
@@ -48,8 +56,7 @@ func (a API) retry(w http.ResponseWriter, r *http.Request) {
 		fail(w, e)
 		return
 	}
-	v.Payload = model.Snapshot{}
-	write(w, 202, v)
+	write(w, 202, view(v))
 }
 func (a API) download(w http.ResponseWriter, r *http.Request) {
 	v, e := a.Service.Artifact(r.PathValue("id"))
@@ -101,8 +108,18 @@ func (a API) compare(w http.ResponseWriter, r *http.Request) {
 	write(w, 200, v)
 }
 func (a API) status(w http.ResponseWriter, r *http.Request) {
-	write(w, 200, observe.Summary(a.Service.Store.Read()))
+	st, e := a.Service.Store.Read()
+	if e != nil {
+		fail(w, e)
+		return
+	}
+	write(w, 200, observe.Summary(st))
 }
 func (a API) events(w http.ResponseWriter, r *http.Request) {
-	write(w, 200, a.Service.Store.Read().Events)
+	st, e := a.Service.Store.Read()
+	if e != nil {
+		fail(w, e)
+		return
+	}
+	write(w, 200, st.Events)
 }

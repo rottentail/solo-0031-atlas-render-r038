@@ -4,14 +4,15 @@ Go 静态图形合成服务。使用有序场景图描述矩形、椭圆、多�
 
 ## 启动
 
-需要 Go 1.22 或以上；持久存储的进程独占锁适用于 macOS 和 Linux。
+需要 Go 1.22 或以上；持久存储使用按事务持有的建议性文件锁，适用于 macOS 和 Linux。
 
 ```sh
 go build ./...
-go run ./cmd/atlas
+go run ./cmd/atlas serve      # HTTP：接收、查询和控制
+go run ./cmd/atlas worker     # 执行进程，可启动多个
 ```
 
-默认监听 `127.0.0.1:8763`，状态写入 `var/atlas-state.json`。可用 `ATLAS_ADDR`、`ATLAS_STATE` 改变监听地址和状态路径。同一个状态路径只能由一个进程打开。服务启动会验证持久数据并恢复中断的执行任务。默认部署面向受信网络中的单实例生产流程。
+默认监听 `127.0.0.1:8763`，状态写入 `var/atlas-state.json`。可用 `ATLAS_ADDR`、`ATLAS_STATE` 改变监听地址和状态路径。HTTP 进程只接收和查询，渲染由独立的 `worker` 进程完成；多个 worker 共享同一个状态文件，通过租约和领取令牌保证一个任务同时只有一个执行者。服务启动会验证持久数据并恢复中断的执行任务。默认部署面向受信网络中的单实例 HTTP 与多实例执行进程。
 
 ## 运行真实工作流
 
@@ -21,11 +22,13 @@ python3 scripts/walkthrough.py --workflow retire-asset
 python3 scripts/walkthrough.py --workflow cancel-render
 python3 scripts/walkthrough.py --workflow retry-render
 python3 scripts/walkthrough.py --workflow recover-render
+python3 scripts/walkthrough.py --workflow multi-worker
+python3 scripts/walkthrough.py --workflow partition-recovery
 python3 scripts/walkthrough.py --workflow import-package
 python3 scripts/walkthrough.py --workflow compare-renders
 ```
 
-脚本在临时状态目录启动实际服务，通过 HTTP 完成操作后停止服务，输出任务状态和 PNG 摘要；`--out` 保存可查看的合成示例。恢复流程会强制结束脚本自己启动的服务进程，再验证恢复结果。所有工作流编号见 `.project-manifest.json`。
+脚本在临时状态目录启动实际 HTTP 进程和一个或多个执行进程，通过 HTTP 完成操作后停止进程，输出任务状态和 PNG 摘要；`--out` 保存可查看的合成示例。`recover-render` 杀掉执行进程验证接管，`partition-recovery` 在执行中强杀进程并验证租约过期后原位接管、attempt 不增加且只产生一个结果，`multi-worker` 验证并发消费、取消隔离、优雅回队和旧队列数据继续处理。所有工作流编号见 `.project-manifest.json`。
 
 ## 场景到结果
 
@@ -42,6 +45,6 @@ python3 scripts/walkthrough.py --workflow compare-renders
 
 透明度为 0–1，变换中的 `scaleX`、`scaleY` 必须显式设置；省略会成为零而被拒绝。组的透明度乘到每个后代，属于分布式透明语义；当前没有离屏隔离组。缩放 2 表示两倍尺寸渲染，不表示输出降采样。位图按最近邻采样，颜色直接在编码通道上混合。
 
-持久化使用完整 JSON 状态的原子替换，保留全部任务与快照，事件只保留最近 500 条。适合中小规模、单写实例工作负载。清理结果只释放 PNG 字节，仍保留任务事实和摘要。进程重启可恢复任务；突然断电的文件系统耐久性不作额外保证。
+持久化使用完整 JSON 状态的原子替换，保留全部任务与快照，事件只保留最近 500 条。每个事务在文件锁内重新读取磁盘状态，因此 HTTP 与任意数量的执行进程可以共享状态，事务不会相互覆盖。适合中小规模工作负载。清理结果只释放 PNG 字节，仍保留任务事实和摘要。执行进程失联后租约过期即可被接管，重启可恢复任务；突然断电的文件系统耐久性不作额外保证。
 
-测试处于 deferred 阶段，基线未包含自动化测试套件或 `test_command`。生产工作流检查、构建与静态检查已单独提供。接口和持久状态的规则详见 `PROJECT_SPEC.md`、`docs/api.md`、`docs/operations.md`。
+构建与静态检查为 `go build ./...`、`go vet ./...`；单元测试 `go test ./...` 覆盖租约与恢复判定，生产工作流检查由 `scripts/walkthrough.py` 提供。接口和持久状态的规则详见 `PROJECT_SPEC.md`、`docs/api.md`、`docs/operations.md`。

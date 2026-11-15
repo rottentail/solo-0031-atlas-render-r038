@@ -64,7 +64,13 @@ func (s *Service) Cancel(id string) (model.Job, error) {
 		if j.State != "queued" && j.State != "running" {
 			return model.Conflict("job has already finished")
 		}
+		// Clearing the claim is what makes cancellation authoritative across
+		// processes: the executing worker's heartbeat and result commit both
+		// require the exact claim, so a late render cannot resurrect the job.
 		j.State = "cancelled"
+		j.Claim = ""
+		j.WorkerID = ""
+		j.LeaseUntil = time.Time{}
 		j.UpdatedAt = time.Now().UTC()
 		st.Jobs[id] = j
 		st.Emit("job.cancelled", id)
@@ -95,6 +101,9 @@ func (s *Service) Retry(id string) (model.Job, error) {
 		j.State = "queued"
 		j.Error = ""
 		j.Attempt++
+		j.Claim = ""
+		j.WorkerID = ""
+		j.LeaseUntil = time.Time{}
 		j.UpdatedAt = time.Now().UTC()
 		st.Jobs[id] = j
 		st.Emit("job.retried", id)
@@ -120,7 +129,11 @@ func (s *Service) Purge(id string) error {
 	})
 }
 func (s *Service) Artifact(id string) (model.Artifact, error) {
-	a, ok := s.Store.Read().Artifacts[id]
+	st, e := s.Store.Read()
+	if e != nil {
+		return model.Artifact{}, e
+	}
+	a, ok := st.Artifacts[id]
 	if !ok {
 		return a, model.Missing("artifact not found")
 	}

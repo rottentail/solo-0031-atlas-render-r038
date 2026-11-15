@@ -1,0 +1,25 @@
+[Unit]
+Description=Atlas Render execution worker (%i)
+After=network.target atlas.service
+PartOf=atlas.service
+
+[Service]
+Type=simple
+User=atlas
+WorkingDirectory=/opt/atlas
+Environment=ATLAS_STATE=/var/lib/atlas/state.json
+Environment=ATLAS_LEASE=5s
+Environment=ATLAS_POLL=150ms
+Environment=ATLAS_WORKERS=1
+Environment=ATLAS_WORKER_ID=atlas-worker-%i
+ExecStart=/opt/atlas/atlas worker
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/atlas
+
+[Install]
+WantedBy=multi-user.target

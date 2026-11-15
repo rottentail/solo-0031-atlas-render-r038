@@ -49,14 +49,37 @@ func Validate(s model.State) error {
 			return fmt.Errorf("orphan job %s", id)
 		}
 		switch j.State {
-		case "queued", "running", "failed", "cancelled":
+		case "queued":
 			if j.ArtifactID != "" {
 				return fmt.Errorf("unfinished job references artifact")
+			}
+			if j.Claim != "" || j.WorkerID != "" || !j.LeaseUntil.IsZero() {
+				return fmt.Errorf("queued job %s retains a claim", id)
+			}
+		case "running":
+			if j.ArtifactID != "" {
+				return fmt.Errorf("unfinished job references artifact")
+			}
+			// A pre-lease record may still say running with no claim. It is
+			// accepted on load so startup recovery can requeue it; a claimed
+			// record must carry the full lease.
+			if j.Claim != "" && (j.WorkerID == "" || j.LeaseUntil.IsZero()) {
+				return fmt.Errorf("running job %s has an incomplete execution claim", id)
+			}
+		case "failed", "cancelled":
+			if j.ArtifactID != "" {
+				return fmt.Errorf("unfinished job references artifact")
+			}
+			if j.Claim != "" || j.WorkerID != "" || !j.LeaseUntil.IsZero() {
+				return fmt.Errorf("finished job %s retains a claim", id)
 			}
 		case "succeeded":
 			a, ok := s.Artifacts[j.ArtifactID]
 			if !ok || a.JobID != id {
 				return fmt.Errorf("job result missing")
+			}
+			if j.Claim != "" || j.WorkerID != "" || !j.LeaseUntil.IsZero() {
+				return fmt.Errorf("finished job %s retains a claim", id)
 			}
 		default:
 			return fmt.Errorf("invalid job state")

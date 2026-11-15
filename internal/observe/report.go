@@ -55,12 +55,16 @@ func Compare(a, b model.Artifact) (Comparison, error) {
 }
 func Summary(st model.State) map[string]any {
 	jobs := map[string]int{}
+	workers := map[string]int{}
 	for _, j := range st.Jobs {
 		jobs[j.State]++
+		if j.State == "running" && j.WorkerID != "" {
+			workers[j.WorkerID]++
+		}
 	}
 	bytes := 0
 	for _, a := range st.Artifacts {
 		bytes += len(a.PNG)
 	}
-	return map[string]any{"sceneCount": len(st.Scenes), "assetCount": len(st.Assets), "snapshotCount": len(st.Snapshots), "jobs": jobs, "artifactBytes": bytes, "sequence": st.Sequence}
+	return map[string]any{"sceneCount": len(st.Scenes), "assetCount": len(st.Assets), "snapshotCount": len(st.Snapshots), "jobs": jobs, "activeWorkers": workers, "artifactBytes": bytes, "sequence": st.Sequence}
 }

@@ -8,7 +8,11 @@ import (
 )
 
 func (s *Service) Export(id string) (bundle.Package, error) {
-	v, ok := s.Store.Read().Snapshots[id]
+	st, e := s.Store.Read()
+	if e != nil {
+		return bundle.Package{}, e
+	}
+	v, ok := st.Snapshots[id]
 	if !ok {
 		return bundle.Package{}, model.Missing("snapshot not found")
 	}

@@ -90,6 +90,13 @@ type Job struct {
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`
 	Payload    Snapshot  `json:"payload"`
+	// Claim identifies one execution lease. A result can only be committed
+	// while the job still carries this exact claim and attempt. It is cleared
+	// whenever the job leaves running, so a worker that lost contact with the
+	// state cannot publish a stale result.
+	Claim      string    `json:"claim,omitempty"`
+	WorkerID   string    `json:"workerId,omitempty"`
+	LeaseUntil time.Time `json:"leaseUntil,omitempty"`
 }
 type Artifact struct {
 	ID     string `json:"id"`
@@ -109,6 +116,7 @@ type Event struct {
 	Sequence int       `json:"sequence"`
 	Kind     string    `json:"kind"`
 	Subject  string    `json:"subject"`
+	Actor    string    `json:"actor,omitempty"`
 	At       time.Time `json:"at"`
 }
 type State struct {
@@ -152,8 +160,14 @@ func Clone[T any](v T) T {
 	return out
 }
 func (s *State) Emit(kind, id string) {
+	s.EmitBy(kind, id, "")
+}
+
+// EmitBy records an event attributed to the actor that caused it. Events
+// remain ordered by Sequence regardless of which process appended them.
+func (s *State) EmitBy(kind, id, actor string) {
 	s.Sequence++
-	s.Events = append(s.Events, Event{Sequence: s.Sequence, Kind: kind, Subject: id, At: time.Now().UTC()})
+	s.Events = append(s.Events, Event{Sequence: s.Sequence, Kind: kind, Subject: id, Actor: actor, At: time.Now().UTC()})
 	if len(s.Events) > 500 {
 		s.Events = s.Events[len(s.Events)-500:]
 	}

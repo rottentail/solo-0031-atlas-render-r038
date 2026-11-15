@@ -21,10 +21,10 @@
 | GET /artifacts/{id} | 可选If-None-Match | PNG，200或304 |
 | DELETE /artifacts/{id} | 无 | state，200 |
 | POST /compare | left, right（结果ID） | 像素比较，200 |
-| GET /status | 无 | 场景/素材/快照/任务计数和结果字节数 |
+| GET /status | 无 | 场景/素材/快照/任务计数、执行中worker和结果字节数 |
 | GET /events | 无 | 最多500个有序领域事件 |
 
-`GET /healthz` 不带 `/v1`，返回ready。它表明进程已打开并恢复状态，不包含单独的磁盘可写探测。任务响应省略固定输入的有效载荷，输入细节通过快照接口读取。
+`GET /healthz` 不带 `/v1`，返回ready。它表明进程已打开并恢复状态，不包含单独的磁盘可写探测。任务响应省略固定输入的有效载荷和执行令牌，输入细节通过快照接口读取；`workerId` 与 `leaseUntil` 暴露当前执行租约。`GET /status` 的 `activeWorkers` 按workerId报告正在执行的任务数。渲染由独立的 `atlas worker` 进程完成，HTTP进程只接收、查询和控制。
 
 文档字段：width、height、background、layers。每个图层有id、kind、width、height、transform、opacity、fill；transform包括x、y、scaleX、scaleY、degrees。图层可以有clip（x/y/width/height），group使用children，polygon使用points，image使用assetId。solid颜料有color；linear还包括endColor、from、to。示例是可直接提交的完整请求。
 

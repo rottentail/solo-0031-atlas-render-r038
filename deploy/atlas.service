@@ -1,6 +1,7 @@
 [Unit]
-Description=Atlas Render static composition service
+Description=Atlas Render API (intake, lookup, control)
 After=network.target
+Wants=atlas-worker@1.service
 
 [Service]
 Type=simple
@@ -8,7 +9,8 @@ User=atlas
 WorkingDirectory=/opt/atlas
 Environment=ATLAS_ADDR=127.0.0.1:8763
 Environment=ATLAS_STATE=/var/lib/atlas/state.json
-ExecStart=/opt/atlas/atlas
+Environment=ATLAS_LEASE=5s
+ExecStart=/opt/atlas/atlas serve
 Restart=on-failure
 TimeoutStopSec=20
 NoNewPrivileges=true

@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"atlas-render/internal/engine"
 	"atlas-render/internal/model"
 	"atlas-render/internal/service"
 	"encoding/json"
@@ -10,9 +9,10 @@ import (
 	"net/http"
 )
 
+// API serves intake, lookup, and control. Execution happens in separate
+// worker processes that share the same state file.
 type API struct {
 	Service *service.Service
-	Worker  *engine.Worker
 }
 
 func write(w http.ResponseWriter, status int, v any) {
